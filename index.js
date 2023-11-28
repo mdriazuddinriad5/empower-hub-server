@@ -28,6 +28,29 @@ async function run() {
         // Connect the client to the server	(optional starting in v4.7)
         await client.connect();
 
+        const serviceCollection = client.db("eHubDb").collection("services");
+        const queryCollection = client.db("eHubDb").collection("queries");
+        const userCollection = client.db("eHubDb").collection("users");
+
+        app.get('/services', async (req, res) => {
+            const result = await serviceCollection.find().toArray();
+            res.send(result);
+        })
+
+        app.post('/user-query', async (req, res) => {
+            const uQuery = req.body;
+            const result = queryCollection.insertOne(uQuery);
+            res.send(result);
+        })
+
+        // user related api
+
+        app.post('/users', async (req, res) => {
+            const item = req.body;
+            const result = await userCollection.insertOne(item);
+            res.send(result);
+        })
+
 
 
         // Send a ping to confirm a successful connection
@@ -35,7 +58,7 @@ async function run() {
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } finally {
         // Ensures that the client will close when you finish/error
-        await client.close();
+        // await client.close();
     }
 }
 run().catch(console.dir);
