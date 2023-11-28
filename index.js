@@ -3,6 +3,7 @@ const app = express();
 const cors = require('cors');
 const port = process.env.PORT || 5000;
 require('dotenv').config();
+const jwt = require('jsonwebtoken');
 
 
 // middlewares
@@ -31,6 +32,19 @@ async function run() {
         const serviceCollection = client.db("eHubDb").collection("services");
         const queryCollection = client.db("eHubDb").collection("queries");
         const userCollection = client.db("eHubDb").collection("users");
+
+
+         // jwt related api
+         app.post('/jwt', async (req, res) => {
+            const user = req.body;
+            const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' });
+            res.send({ token });
+        })
+
+
+        
+
+
 
         app.get('/services', async (req, res) => {
             const result = await serviceCollection.find().toArray();
