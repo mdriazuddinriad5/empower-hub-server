@@ -13,7 +13,7 @@ app.use(cors());
 app.use(express.json());
 
 
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.jwhv1v2.mongodb.net/?retryWrites=true&w=majority`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -104,11 +104,65 @@ async function run() {
             res.send(result);
         })
 
+        app.get('/employee-list', verifyToken, verifyHr, async (req, res) => {
+            const allUsers = await userCollection.find().toArray();
+            const employees = allUsers.filter(user => user.role === 'employee');
+            res.send(employees);
+        });
+
+        app.get('/users/admin/:email', verifyToken, async (req, res) => {  // this one is for admin followed by jwt
+            const email = req.params.email;
+            if (email !== req.decoded.email) {
+                return res.status(403).send({ message: "Forbidden access" });
+            }
+            const query = { email: email };
+            const user = await userCollection.findOne(query);
+
+            let admin = false;
+            if (user) {
+                admin = user?.role === "admin";
+            }
+            res.send({ admin });
+        })
+
+        app.get('/users/hr/:email', verifyToken, async (req, res) => {  // this one is for hr followed by jwt
+            const email = req.params.email;
+            if (email !== req.decoded.email) {
+                return res.status(403).send({ message: "Forbidden access" });
+            }
+            const query = { email: email };
+            const user = await userCollection.findOne(query);
+
+            let hr = false;
+            if (user) {
+                hr = user?.role === "hr";
+            }
+            res.send({ hr });
+        })
+
+
         app.post('/users', async (req, res) => {
             const item = req.body;
             const result = await userCollection.insertOne(item);
             res.send(result);
         })
+
+
+        app.patch('/user-verify/:id', verifyToken, verifyHr, async (req, res) => {
+            const id = req.params.id;
+            const filter = { _id: new ObjectId(id) };
+            const verifiedUser = req.body;
+            console.log(verifiedUser);
+            const updateDoc = {
+                $set: {
+                    verified: verifiedUser.verified
+                },
+            };
+            const result = await userCollection.updateOne(filter, updateDoc);
+            res.send(result);
+        })
+
+
 
 
 
