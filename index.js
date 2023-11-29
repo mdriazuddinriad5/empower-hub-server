@@ -33,6 +33,7 @@ async function run() {
         const serviceCollection = client.db("eHubDb").collection("services");
         const queryCollection = client.db("eHubDb").collection("queries");
         const userCollection = client.db("eHubDb").collection("users");
+        const workEntries = client.db("eHubDb").collection("workEntries");
 
 
         // jwt related api
@@ -104,6 +105,13 @@ async function run() {
             res.send(result);
         })
 
+        app.get('/user/:id', verifyToken, verifyHr, async (req, res) => {
+            const id = req.params.id;
+            const filter = { _id: new ObjectId(id) }
+            const result = await userCollection.findOne(filter);
+            res.send(result);
+        })
+
         app.get('/employee-list', verifyToken, verifyHr, async (req, res) => {
             const allUsers = await userCollection.find().toArray();
             const employees = allUsers.filter(user => user.role === 'employee');
@@ -161,6 +169,62 @@ async function run() {
             const result = await userCollection.updateOne(filter, updateDoc);
             res.send(result);
         })
+
+
+        // employee payment related api
+
+
+        app.post('/submit-work-entry', async (req, res) => {
+            const { task, hoursWorked, date } = req.body;
+
+            try {
+                const hourlyRates = {
+                    Sales: 20,
+                    Support: 15,
+                    Content: 25,
+                    'Paper-work': 10,
+                };
+                const hourlyRate = hourlyRates[task] || 0;
+                const amount = hourlyRate * hoursWorked;
+
+                const existingEntry = await workEntries.findOne({
+                    month: new Date(date).getMonth() + 1,
+                    year: new Date(date).getFullYear(),
+                });
+
+                if (existingEntry) {
+
+                    existingEntry.totalAmount += amount;
+                    await db.collection('workEntries').updateOne(
+                        { _id: ObjectId(existingEntry._id) },
+                        { $set: { totalAmount: existingEntry.totalAmount } }
+                    );
+                } else {
+                    await workEntries.insertOne({
+                        task,
+                        hoursWorked,
+                        date,
+                        amount,
+                    });
+                }
+
+                res.json({ message: 'Work entry submitted successfully' });
+            } catch (error) {
+                console.error('Error submitting work entry:', error);
+                res.status(500).json({ error: 'Internal Server Error' });
+            }
+        });
+
+
+        app.get('/get-work-entries', async (req, res) => {
+            try {
+                const work = await workEntries.find().toArray();
+                res.send(work);
+            } catch (error) {
+                console.error('Error fetching work entries:', error);
+                res.status(500).json({ error: 'Internal Server Error' });
+            }
+        });
 
 
 
