@@ -171,12 +171,32 @@ async function run() {
             res.send(result);
         })
 
+        app.patch('/users/admin/:id', verifyToken, verifyAdmin, async (req, res) => {
+            const id = req.params.id;
+            const filter = { _id: new ObjectId(id) }
+            const updatedDoc = {
+                $set: {
+                    role: 'hr'
+                }
+            }
+            const result = await userCollection.updateOne(filter, updatedDoc);
+            res.send(result);
+        })
+
+        app.delete('/users/:id', verifyToken, verifyAdmin, async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) };
+            const result = await userCollection.deleteOne(query);
+            res.send(result);
+        })
+        
+
 
         // employee payment related api
 
 
         app.post('/submit-work-entry', async (req, res) => {
-            const { task, hoursWorked, date, email } = req.body;
+            const { task, hoursWorked, date, email, name } = req.body;
 
             try {
                 const hourlyRates = {
@@ -206,7 +226,8 @@ async function run() {
                         hoursWorked,
                         date,
                         amount,
-                        email
+                        email,
+                        name
                     });
                 }
 
@@ -218,7 +239,7 @@ async function run() {
         });
 
 
-        app.get('/get-work-entries', async (req, res) => {
+        app.get('/get-work-entries', verifyToken, async (req, res) => {
             const email = req.query.email;
             const query = { email: email }
             try {
@@ -229,6 +250,11 @@ async function run() {
                 res.status(500).json({ error: 'Internal Server Error' });
             }
         });
+
+        app.get('/work-progress', async (req, res) => {
+            const result = await workEntries.find().toArray();
+            res.send(result);
+        })
 
 
         // payment intent
@@ -256,9 +282,6 @@ async function run() {
             const paymentResult = await paymentCollection.insertOne(payment);
             res.send({ paymentResult })
         })
-
-
-
 
 
         app.get('/payment', async (req, res) => {
