@@ -3,7 +3,7 @@ const app = express();
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 require('dotenv').config();
-
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const port = process.env.PORT || 5000;
 
 
@@ -34,6 +34,7 @@ async function run() {
         const queryCollection = client.db("eHubDb").collection("queries");
         const userCollection = client.db("eHubDb").collection("users");
         const workEntries = client.db("eHubDb").collection("workEntries");
+        const paymentCollection = client.db("eHubDb").collection("payment");
 
 
         // jwt related api
@@ -175,7 +176,7 @@ async function run() {
 
 
         app.post('/submit-work-entry', async (req, res) => {
-            const { task, hoursWorked, date } = req.body;
+            const { task, hoursWorked, date, email } = req.body;
 
             try {
                 const hourlyRates = {
@@ -205,6 +206,7 @@ async function run() {
                         hoursWorked,
                         date,
                         amount,
+                        email
                     });
                 }
 
@@ -217,14 +219,77 @@ async function run() {
 
 
         app.get('/get-work-entries', async (req, res) => {
+            const email = req.query.email;
+            const query = { email: email }
             try {
-                const work = await workEntries.find().toArray();
+                const work = await workEntries.find(query).toArray();
                 res.send(work);
             } catch (error) {
                 console.error('Error fetching work entries:', error);
                 res.status(500).json({ error: 'Internal Server Error' });
             }
         });
+
+
+        // payment intent
+
+        app.post('/create-payment-intent', async (req, res) => {
+            const { salary } = req.body;
+            const amount = salary * 100;
+
+            const paymentIntent = await stripe.paymentIntents.create({
+                amount: amount,
+                currency: 'usd',
+                payment_method_types: ['card']
+            })
+
+            res.send({
+                clientSecret: paymentIntent.client_secret
+            })
+        })
+
+
+
+
+        app.post('/payments', async (req, res) => {
+            const payment = req.body;
+            const paymentResult = await paymentCollection.insertOne(payment);
+            res.send({ paymentResult })
+        })
+
+
+
+
+
+        app.get('/payment', async (req, res) => {
+            const employeeId = req.query.employeeId;
+            const query = { employeeId: employeeId };
+            const result = await paymentCollection.find(query).toArray();
+            res.send(result);
+        })
+
+        app.get('/payments', verifyToken, verifyHr, async (req, res) => {
+
+            const employeeId = req.query.employeeId;
+            const date = req.query.date;
+            const matchingPayments = await paymentCollection.find({
+                employeeId: employeeId,
+                date: date,
+            }).toArray();
+
+            res.send(matchingPayments)
+
+        });
+
+
+        app.get('/person-payments/:email', verifyToken, async (req, res) => {
+            const query = { email: req.params.email };
+            if (req.params.email !== req.decoded.email) {
+                return res.status(403).send({ message: "Forbidden Access" });
+            }
+            const result = await paymentCollection.find(query).toArray();
+            res.send(result);
+        })
 
 
 
